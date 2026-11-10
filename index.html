@@ -1,0 +1,708 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MrShop: Night Drop</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #05070a;
+      overflow: hidden;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    canvas {
+      display: block;
+      margin: auto;
+      background: #0d1320;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="960" height="540"></canvas>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    const W = 960;
+    const H = 540;
+
+    let state = "menu";
+    let levelIndex = 0;
+    let suspicion = 0;
+    let message = "";
+    let messageTimer = 0;
+    let interactPressed = false;
+
+    const keys = {};
+
+    const player = {
+      x: 80,
+      y: 80,
+      r: 12,
+      speed: 200,
+      carrying: false,
+      currentOrder: 0
+    };
+
+    const levels = [
+      {
+        name: "Livello 1 - Primo giro",
+        intro: "MrChat: Nuovo ordine. Raggiungi il punto giallo e premi E.",
+        player: { x: 80, y: 480 },
+        orders: [
+          {
+            pickup: { x: 220, y: 140 },
+            drop: { x: 780, y: 400 }
+          }
+        ],
+        police: [
+          {
+            path: [
+              { x: 480, y: 120 },
+              { x: 480, y: 420 }
+            ],
+            speed: 70,
+            range: 170,
+            fov: Math.PI / 3
+          }
+        ]
+      },
+      {
+        name: "Livello 2 - Periferia",
+        intro: "MrChat: Due consegne. Le pattuglie sono più numerose.",
+        player: { x: 80, y: 270 },
+        orders: [
+          {
+            pickup: { x: 160, y: 120 },
+            drop: { x: 820, y: 120 }
+          },
+          {
+            pickup: { x: 160, y: 420 },
+            drop: { x: 820, y: 420 }
+          }
+        ],
+        police: [
+          {
+            path: [
+              { x: 480, y: 100 },
+              { x: 480, y: 440 }
+            ],
+            speed: 85,
+            range: 185,
+            fov: Math.PI / 3
+          },
+          {
+            path: [
+              { x: 300, y: 270 },
+              { x: 700, y: 270 }
+            ],
+            speed: 75,
+            range: 170,
+            fov: Math.PI / 2.6
+          }
+        ]
+      },
+      {
+        name: "Livello 3 - Zona Nord",
+        intro: "MrChat: I clienti hanno fretta. Non sostare nei coni visivi.",
+        player: { x: 480, y: 500 },
+        orders: [
+          {
+            pickup: { x: 120, y: 180 },
+            drop: { x: 840, y: 180 }
+          },
+          {
+            pickup: { x: 120, y: 360 },
+            drop: { x: 840, y: 360 }
+          }
+        ],
+        police: [
+          {
+            path: [
+              { x: 300, y: 120 },
+              { x: 660, y: 120 },
+              { x: 660, y: 240 },
+              { x: 300, y: 240 }
+            ],
+            speed: 95,
+            range: 190,
+            fov: Math.PI / 3.2
+          },
+          {
+            path: [
+              { x: 300, y: 300 },
+              { x: 660, y: 300 },
+              { x: 660, y: 420 },
+              { x: 300, y: 420 }
+            ],
+            speed: 95,
+            range: 190,
+            fov: Math.PI / 3.2
+          },
+          {
+            path: [
+              { x: 480, y: 80 },
+              { x: 480, y: 460 }
+            ],
+            speed: 70,
+            range: 170,
+            fov: Math.PI / 2.8
+          }
+        ]
+      },
+      {
+        name: "Livello 4 - Centro",
+        intro: "MrChat: Tre ordini. La città è più sorvegliata.",
+        player: { x: 60, y: 60 },
+        orders: [
+          {
+            pickup: { x: 180, y: 420 },
+            drop: { x: 780, y: 120 }
+          },
+          {
+            pickup: { x: 780, y: 420 },
+            drop: { x: 180, y: 120 }
+          },
+          {
+            pickup: { x: 480, y: 270 },
+            drop: { x: 880, y: 270 }
+          }
+        ],
+        police: [
+          {
+            path: [
+              { x: 240, y: 270 },
+              { x: 720, y: 270 }
+            ],
+            speed: 100,
+            range: 190,
+            fov: Math.PI / 3
+          },
+          {
+            path: [
+              { x: 480, y: 120 },
+              { x: 480, y: 420 }
+            ],
+            speed: 80,
+            range: 180,
+            fov: Math.PI / 3
+          },
+          {
+            path: [
+              { x: 180, y: 180 },
+              { x: 780, y: 180 },
+              { x: 780, y: 360 },
+              { x: 180, y: 360 }
+            ],
+            speed: 90,
+            range: 185,
+            fov: Math.PI / 3.4
+          }
+        ]
+      },
+      {
+        name: "Livello 5 - Ultima corsa",
+        intro: "MrChat: Dopo questa, decidi tu come finisce la storia.",
+        player: { x: 480, y: 60 },
+        orders: [
+          {
+            pickup: { x: 120, y: 120 },
+            drop: { x: 840, y: 420 }
+          },
+          {
+            pickup: { x: 840, y: 120 },
+            drop: { x: 120, y: 420 }
+          },
+          {
+            pickup: { x: 480, y: 270 },
+            drop: { x: 480, y: 470 }
+          }
+        ],
+        police: [
+          {
+            path: [
+              { x: 240, y: 120 },
+              { x: 720, y: 120 },
+              { x: 720, y: 420 },
+              { x: 240, y: 420 }
+            ],
+            speed: 110,
+            range: 190,
+            fov: Math.PI / 3.2
+          },
+          {
+            path: [
+              { x: 480, y: 180 },
+              { x: 480, y: 360 }
+            ],
+            speed: 85,
+            range: 180,
+            fov: Math.PI / 2.8
+          },
+          {
+            path: [
+              { x: 120, y: 270 },
+              { x: 840, y: 270 }
+            ],
+            speed: 100,
+            range: 185,
+            fov: Math.PI / 3.2
+          },
+          {
+            path: [
+              { x: 330, y: 420 },
+              { x: 630, y: 420 }
+            ],
+            speed: 95,
+            range: 170,
+            fov: Math.PI / 2.6
+          }
+        ]
+      }
+    ];
+
+    let orders = [];
+    let police = [];
+
+    function setMessage(text, seconds = 3.5) {
+      message = text;
+      messageTimer = seconds;
+    }
+
+    function loadLevel(index) {
+      levelIndex = index;
+      const L = levels[index];
+
+      suspicion = 0;
+
+      player.x = L.player.x;
+      player.y = L.player.y;
+      player.carrying = false;
+      player.currentOrder = 0;
+
+      orders = L.orders.map(order => ({
+        pickup: { ...order.pickup },
+        drop: { ...order.drop }
+      }));
+
+      police = L.police.map(p => ({
+        path: p.path.map(point => ({ ...point })),
+        speed: p.speed,
+        range: p.range,
+        fov: p.fov,
+        x: p.path[0].x,
+        y: p.path[0].y,
+        waypoint: 1,
+        angle: 0
+      }));
+
+      state = "playing";
+      setMessage(L.intro, 4);
+    }
+
+    function normalizeAngle(angle) {
+      while (angle > Math.PI) angle -= Math.PI * 2;
+      while (angle < -Math.PI) angle += Math.PI * 2;
+      return angle;
+    }
+
+    function distance(a, b) {
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    }
+
+    function nearPoint(a, b, radius = 32) {
+      return distance(a, b) <= radius;
+    }
+
+    function updatePlayer(dt) {
+      let dx = 0;
+      let dy = 0;
+
+      if (keys["arrowup"] || keys["w"]) dy -= 1;
+      if (keys["arrowdown"] || keys["s"]) dy += 1;
+      if (keys["arrowleft"] || keys["a"]) dx -= 1;
+      if (keys["arrowright"] || keys["d"]) dx += 1;
+
+      if (dx !== 0 || dy !== 0) {
+        const len = Math.hypot(dx, dy);
+        player.x += (dx / len) * player.speed * dt;
+        player.y += (dy / len) * player.speed * dt;
+      }
+
+      player.x = Math.max(player.r, Math.min(W - player.r, player.x));
+      player.y = Math.max(player.r, Math.min(H - player.r, player.y));
+
+      const order = orders[player.currentOrder];
+
+      if (interactPressed && order) {
+        if (!player.carrying && nearPoint(player, order.pickup)) {
+          player.carrying = true;
+          setMessage("Pacco ritirato. Vai al punto verde e premi E.");
+        } else if (player.carrying && nearPoint(player, order.drop)) {
+          player.carrying = false;
+          player.currentOrder++;
+
+          if (player.currentOrder >= orders.length) {
+            if (levelIndex >= levels.length - 1) {
+              state = "win";
+            } else {
+              state = "levelComplete";
+            }
+            setMessage("Ordine completato.");
+          } else {
+            setMessage("MrChat: nuovo ordine disponibile.");
+          }
+        }
+      }
+    }
+
+    function updatePolice(dt) {
+      let seen = false;
+
+      for (const p of police) {
+        const target = p.path[p.waypoint];
+        const dx = target.x - p.x;
+        const dy = target.y - p.y;
+        const d = Math.hypot(dx, dy);
+
+        if (d < 5) {
+          p.waypoint = (p.waypoint + 1) % p.path.length;
+        } else {
+          const step = p.speed * dt;
+
+          if (step >= d) {
+            p.x = target.x;
+            p.y = target.y;
+          } else {
+            p.x += (dx / d) * step;
+            p.y += (dy / d) * step;
+          }
+
+          p.angle = Math.atan2(dy, dx);
+        }
+
+        const distanceToPlayer = Math.hypot(player.x - p.x, player.y - p.y);
+
+        if (distanceToPlayer <= p.range) {
+          const angleToPlayer = Math.atan2(player.y - p.y, player.x - p.x);
+          const diff = Math.abs(normalizeAngle(angleToPlayer - p.angle));
+
+          if (diff <= p.fov / 2) {
+            suspicion += 70 * dt;
+            seen = true;
+          }
+        }
+      }
+
+      if (!seen) {
+        suspicion = Math.max(0, suspicion - 40 * dt);
+      }
+
+      suspicion = Math.min(100, suspicion);
+
+      if (suspicion >= 100) {
+        state = "caught";
+      }
+    }
+
+    function drawBackground() {
+      ctx.fillStyle = "#0d1320";
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.strokeStyle = "rgba(255,255,255,0.04)";
+      ctx.lineWidth = 1;
+
+      for (let x = 0; x <= W; x += 48) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, H);
+        ctx.stroke();
+      }
+
+      for (let y = 0; y <= H; y += 48) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(W, y);
+        ctx.stroke();
+      }
+    }
+
+    function drawMarker(point, color, label) {
+      const pulse = 8 + Math.sin(performance.now() / 220) * 2;
+
+      ctx.save();
+      ctx.translate(point.x, point.y);
+
+      ctx.beginPath();
+      ctx.arc(0, 0, 16 + pulse, 0, Math.PI * 2);
+      ctx.strokeStyle = color;
+      ctx.globalAlpha = 0.25;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      ctx.globalAlpha = 1;
+
+      ctx.beginPath();
+      ctx.arc(0, 0, 8, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+
+      ctx.fillStyle = "#04060a";
+      ctx.font = "bold 11px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("E", 0, 0);
+
+      ctx.fillStyle = color;
+      ctx.font = "bold 13px sans-serif";
+      ctx.fillText(label, 0, -32);
+
+      ctx.restore();
+    }
+
+    function drawPolice() {
+      for (const p of police) {
+        ctx.save();
+
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.arc(p.x, p.y, p.range, p.angle - p.fov / 2, p.angle + p.fov / 2);
+        ctx.closePath();
+        ctx.fillStyle = "rgba(255,80,80,0.14)";
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 10, 0, Math.PI * 2);
+        ctx.fillStyle = "#7fb4ff";
+        ctx.fill();
+
+        ctx.fillStyle = "#04101f";
+        ctx.font = "bold 10px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("P", p.x, p.y);
+
+        ctx.restore();
+      }
+    }
+
+    function drawPlayer() {
+      ctx.save();
+
+      ctx.beginPath();
+      ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2);
+      ctx.fillStyle = player.carrying ? "#ffd166" : "#f2f5ff";
+      ctx.fill();
+
+      ctx.strokeStyle = "rgba(0,0,0,0.35)";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      if (player.carrying) {
+        ctx.fillStyle = "#271500";
+        ctx.font = "bold 11px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("BOX", player.x, player.y);
+      }
+
+      ctx.restore();
+    }
+
+    function drawHUD() {
+      ctx.save();
+
+      ctx.fillStyle = "rgba(0,0,0,0.35)";
+      ctx.fillRect(0, 0, W, 62);
+
+      ctx.fillStyle = "#f2f5ff";
+      ctx.font = "bold 18px sans-serif";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      ctx.fillText(levels[levelIndex].name, 16, 10);
+
+      const order = orders[player.currentOrder];
+
+      let objective = "Completa le consegne.";
+      if (order) {
+        objective = player.carrying
+          ? "Vai al punto verde e premi E"
+          : "Vai al punto giallo e premi E";
+      }
+
+      ctx.font = "14px sans-serif";
+      ctx.fillStyle = "#b8c4dd";
+      ctx.fillText(`Obiettivo: ${objective}`, 16, 36);
+
+      const barW = 250;
+      const barH = 16;
+      const barX = W - barW - 16;
+      const barY = 12;
+
+      ctx.fillStyle = "#222b3d";
+      ctx.fillRect(barX, barY, barW, barH);
+
+      ctx.fillStyle =
+        suspicion > 70 ? "#ff5d5d" :
+        suspicion > 35 ? "#ffb45d" :
+        "#5dff8f";
+
+      ctx.fillRect(barX, barY, barW * (suspicion / 100), barH);
+
+      ctx.strokeStyle = "rgba(255,255,255,0.2)";
+      ctx.strokeRect(barX, barY, barW, barH);
+
+      ctx.fillStyle = "#f2f5ff";
+      ctx.font = "12px sans-serif";
+      ctx.fillText("Sospetto", barX, barY + 22);
+
+      if (messageTimer > 0) {
+        ctx.fillStyle = "rgba(8,15,25,0.9)";
+        ctx.fillRect(16, H - 64, W - 32, 44);
+
+        ctx.strokeStyle = "rgba(126,204,255,0.35)";
+        ctx.strokeRect(16, H - 64, W - 32, 44);
+
+        ctx.fillStyle = "#aee6ff";
+        ctx.font = "14px sans-serif";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillText(message, 30, H - 42);
+      }
+
+      ctx.restore();
+    }
+
+    function drawCenterPanel(title, lines) {
+      ctx.save();
+
+      ctx.fillStyle = "rgba(3,6,10,0.78)";
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      ctx.fillStyle = "#f2f5ff";
+      ctx.font = "bold 42px sans-serif";
+      ctx.fillText(title, W / 2, H / 2 - 80);
+
+      ctx.font = "18px sans-serif";
+      ctx.fillStyle = "#c4cfec";
+
+      lines.forEach((line, i) => {
+        ctx.fillText(line, W / 2, H / 2 - 10 + i * 32);
+      });
+
+      ctx.restore();
+    }
+
+    function draw() {
+      drawBackground();
+
+      if (state === "menu") {
+        drawCenterPanel("MrShop: Night Drop", [
+          "Prototipo stealth non realistico: consegne fittizie e pattuglie arcade.",
+          "Usa WASD/frecce per muoverti, E per ritirare/consegnare.",
+          "Premi INVIO per iniziare"
+        ]);
+        return;
+      }
+
+      const order = orders[player.currentOrder];
+
+      if (order) {
+        if (!player.carrying) {
+          drawMarker(order.pickup, "#ffd166", "RITIRO");
+        } else {
+          drawMarker(order.drop, "#7cff9d", "CONSEGNA");
+        }
+      }
+
+      drawPolice();
+      drawPlayer();
+      drawHUD();
+
+      if (state === "caught") {
+        drawCenterPanel("Sei stato fermato", [
+          "La pattuglia ti ha notato troppo a lungo.",
+          "Premi INVIO per riprovare il livello."
+        ]);
+      }
+
+      if (state === "levelComplete") {
+        drawCenterPanel("Livello completato", [
+          "Consegne completate.",
+          "Premi INVIO per passare al livello successivo."
+        ]);
+      }
+
+      if (state === "win") {
+        drawCenterPanel("Fine della demo", [
+          "MrShop completa le ultime consegne e sceglie una strada più sicura.",
+          "Grazie per aver giocato. Premi INVIO per tornare al menu."
+        ]);
+      }
+    }
+
+    window.addEventListener("keydown", (e) => {
+      const k = e.key.toLowerCase();
+
+      if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(k)) {
+        e.preventDefault();
+      }
+
+      keys[k] = true;
+
+      if (k === "e") {
+        interactPressed = true;
+      }
+
+      if (k === "enter") {
+        if (state === "menu") {
+          loadLevel(0);
+        } else if (state === "caught") {
+          loadLevel(levelIndex);
+        } else if (state === "levelComplete") {
+          loadLevel(levelIndex + 1);
+        } else if (state === "win") {
+          state = "menu";
+        }
+      }
+    });
+
+    window.addEventListener("keyup", (e) => {
+      keys[e.key.toLowerCase()] = false;
+    });
+
+    let last = performance.now();
+
+    function frame(now) {
+      const dt = Math.min((now - last) / 1000, 0.05);
+      last = now;
+
+      if (state === "playing") {
+        updatePlayer(dt);
+
+        if (state === "playing") {
+          updatePolice(dt);
+        }
+      }
+
+      if (messageTimer > 0) {
+        messageTimer -= dt;
+      }
+
+      draw();
+      interactPressed = false;
+
+      requestAnimationFrame(frame);
+    }
+
+    requestAnimationFrame(frame);
+  </script>
+</body>
+  </html>
